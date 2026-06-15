@@ -192,17 +192,50 @@ Open http://localhost:5173
 
 ---
 
-## AI Pipeline (7 Stages)
+## AI Pipeline & Core Algorithms
 
-1. Image loading & preprocessing (green channel, CLAHE, Gaussian)
-2. ROI extraction & normalization
-3. K-Strange segmentation (disc vs background, cup vs disc)
-4. CDR calculation (vertical cup-to-disc ratio)
-5. ResNet-50 CNN inference
-6. Risk stratification & recommendations
-7. PDF report generation
+The system uses a 7-stage processing pipeline that combines traditional computer vision algorithms and deep learning.
 
-**Model:** ResNet-50 with transfer learning · **Test accuracy:** ~89.3%
+### 1. Image Preprocessing & ROI Extraction
+* **Green Channel Isolation**: Isolates the green channel of the RGB fundus image to maximize contrast of blood vessels and optic nerve structures against the background.
+* **CLAHE Enhancement**: Contrast Limited Adaptive Histogram Equalization (clip limit `2.0`, `8x8` tile grid) resolves uneven lighting.
+* **Gaussian Filtering**: A `5x5` kernel ($\sigma=1.0$) smooths sensor noise.
+* **Optic Disc ROI**: Detects and extracts a $200 \times 200$ pixel bounding box centered on the optic nerve head, with edge padding for shape consistency.
+
+### 2. Enhanced K-Strange Segmentation
+Unlike basic thresholding, a custom **K-Strange Clustering** algorithm runs in two distinct stages:
+* **Stage 1 (Disc vs Background)**: Segments the outer optic disc boundary from surrounding retinal tissue.
+* **Stage 2 (Cup vs Disc)**: Localizes the inner optic cup within the disc area by analyzing relative light reflections.
+* **Boundary Optimization**: Custom morphological operators (opening and closing) remove noise, and a **least-squares ellipse fitting** algorithm generates smooth, geometrically robust boundaries to compute diameters.
+
+### 3. Vertical Cup-to-Disc Ratio (CDR)
+* Vertical diameters of both masks are calculated (the vertical standard is more sensitive to glaucomatous changes than area-based measurements).
+* **Clinical Thresholds**:
+  * $\text{CDR} < 0.5$: Low Risk (Normal)
+  * $0.5 \le \text{CDR} < 0.6$: Moderate Risk (Borderline)
+  * $0.6 \le \text{CDR} < 0.8$: High Risk (Glaucoma Suspected)
+  * $\text{CDR} \ge 0.8$: Very High Risk (Advanced Glaucoma Suspected)
+
+### 4. Optimized ResNet-50 Deep Learning
+* **Backbone**: ResNet-50 pre-trained model with a custom classification head ($2048 \rightarrow 512 \rightarrow 1$ node output).
+* **Focal Loss**: Utilized during training to handle high class imbalance ($66.7\%$ glaucoma vs $33.3\%$ normal images).
+* **Optimization Details**:
+  * Trained in **two phases** (Phase 1: warm-up head with frozen backbone; Phase 2: fine-tuning `layer4` + head).
+  * Uses a cosine annealing learning rate scheduler and gradient clipping (max norm `1.0`) to avoid exploding gradients.
+  * Validation accuracy achieves **over 90.44%**.
+
+### 5. Multi-Modal Decision Fusion & Clinical Tolerance Rules
+To minimize false-positive borderline flags and increase clinical accuracy, the system integrates a **decision fusion engine** with custom rules:
+* **Rule A (Minor Structural Anomalies)**: If the CDR is slightly elevated ($0.6 \le \text{CDR} < 0.65$) but the ResNet-50 model is highly confident it is normal (probability $< 0.35$), the diagnosis is classified as **Normal**.
+* **Rule B (Low-Confidence CNN Outliers)**: If the CDR is normal ($\text{CDR} < 0.6$) but the ResNet-50 model predicts glaucoma with very low confidence (probability $< 0.55$), the diagnosis is classified as **Normal**.
+* **Mismatch Handling**: All other conflicting results between CDR and CNN predictions are outputted as **Borderline - Manual Review Needed** to mandate human oversight.
+
+---
+
+## Interactive Dashboard & Caching
+* **Interactive UI**: The React frontend uses Tailwind CSS, Framer Motion, and Recharts to render interactive tabs (Preprocessed steps, Disc/Cup overlays, and full 12-panel composite layouts).
+* **PDF Report Compilation**: Server-side report generator (`pdf_service.py`) automatically maps patient records and pixel analysis metrics (disc/cup/rim area) into professional medical reports.
+* **Backend Cache**: Results are saved locally under job IDs. The frontend utilizes the `GET /results/{job_id}` endpoint to reload entire screening runs without exceeding browser storage limits.
 
 ---
 
