@@ -1,5 +1,5 @@
 services:
-  api:
+  glaucoma_project:
     build:
       context: ./glaucoma_project
       dockerfile: Dockerfile
@@ -25,4 +25,4 @@ services:
     ports:
       - "5173:80"
     depends_on:
-      - api
+      - glaucoma_project
