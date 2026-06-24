@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, Loader2, AlertCircle, Activity, Eye, Info } from "lucide-react";
+import { Check, Loader2, AlertCircle, AlertTriangle, Activity, Eye, Info } from "lucide-react";
 import { predictImage, slimResult } from "../api/client";
 import { PROCESSING_STAGES } from "../data/docsContent";
 
@@ -86,6 +86,96 @@ export default function Processing() {
   }, [file, patient, navigate]);
 
   const progressPercent = Math.round((activeIdx / (PROCESSING_STAGES.length - 1)) * 100);
+
+  if (error) {
+    const isValidationError = error.includes("Invalid image");
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-12 text-center mt-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="hospital-card-lg p-8 bg-white border-t-4 border-[#ef4444] shadow-2xl relative overflow-hidden"
+        >
+          {/* Subtle background glow */}
+          <div className="absolute -top-24 -left-24 w-48 h-48 rounded-full bg-[#ef4444]/5 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full bg-[#f59e0b]/5 blur-3xl pointer-events-none" />
+
+          {/* Pulsing Icon */}
+          <div className="w-16 h-16 rounded-full bg-[#ef4444]/10 flex items-center justify-center mx-auto mb-6 border border-[#ef4444]/20">
+            <AlertCircle className="w-8 h-8 text-[#ef4444] animate-pulse" />
+          </div>
+
+          <h2 className="text-2xl font-black tracking-tight text-[#0a2540] mb-2">
+            {isValidationError ? "Retinal Scan Validation Failure" : "Pipeline Execution Error"}
+          </h2>
+          
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-6 font-mono-data">
+            {isValidationError ? "Diagnostic Safety Check Triggered" : "System Communication Failure"}
+          </p>
+
+          {/* Uploaded Image Preview with REJECTED Overlay */}
+          {isValidationError && previewUrl && (
+            <div className="relative w-full max-w-[280px] aspect-[4/3] rounded-xl overflow-hidden border border-slate-200 mx-auto mb-6 shadow-md">
+              <img src={previewUrl} alt="Rejected scan" className="w-full h-full object-cover grayscale opacity-80" />
+              <div className="absolute inset-0 bg-red-950/40 backdrop-blur-[1px] flex items-center justify-center">
+                <span className="bg-[#ef4444] text-white text-[10px] font-black tracking-widest px-4 py-1.5 rounded-full shadow-lg border border-white/25 uppercase">
+                  Scan Rejected
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Error Description Box */}
+          <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 text-left mb-6">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">Detailed Findings</p>
+            <p className="text-sm font-semibold text-slate-600 leading-relaxed">
+              {isValidationError 
+                ? error.replace("Invalid image: ", "") 
+                : "An unexpected error occurred during the analysis pipeline. Please check your network connection and try again."}
+            </p>
+          </div>
+
+          {/* Valid Scan Requirements Checklist */}
+          {isValidationError && (
+            <div className="border-t border-slate-100 pt-6 mb-8 text-left">
+              <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-[#00C2FF] mb-3">
+                Retinal Scan Requirements
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  "Color fundus photograph (RGB)",
+                  "Clear view of the Optic Nerve Head (ONH)",
+                  "Orange/red/yellow retinal color profile",
+                  "No text, documents, or grayscale charts"
+                ].map((req, index) => (
+                  <div key={index} className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00C2FF] shrink-0" />
+                    <span>{req}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button 
+              onClick={() => navigate("/upload")} 
+              className="btn-navy py-3 px-8 text-xs font-bold uppercase tracking-wider shadow-lg shadow-[#0a2540]/10 flex items-center justify-center gap-2"
+            >
+              Upload New Scan
+            </button>
+            <button 
+              onClick={() => navigate("/")} 
+              className="btn-navy-outline py-3 px-8 text-xs font-bold uppercase tracking-wider flex items-center justify-center"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 text-[#0a2540] flex flex-col justify-center flex-1 overflow-y-auto lg:overflow-visible">
