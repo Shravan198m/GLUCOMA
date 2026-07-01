@@ -5,8 +5,14 @@ const API_BASE = import.meta.env.VITE_API_URL ||
 
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);
-  if (!res.ok) throw new Error("API unavailable");
-  return res.json();
+  if (!res.ok) {
+    throw new Error(`Health check failed. Status: ${res.status}`);
+  }
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new Error(`Failed to parse health check JSON: ${e.message}`);
+  }
 }
 
 export async function predictImage(file, patient = {}) {
@@ -17,23 +23,54 @@ export async function predictImage(file, patient = {}) {
   if (patient.id) fd.append("patient_id", patient.id);
 
   const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd });
-  const data = await res.json();
+  
   if (!res.ok) {
-    const msg = data.detail || data.error || "Prediction failed";
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    let errorMsg = "Prediction failed";
+    try {
+      const errorData = await res.json();
+      errorMsg = errorData.detail || errorData.error || errorMsg;
+    } catch {
+      try {
+        const text = await res.text();
+        errorMsg = text || `HTTP ${res.status}: ${res.statusText}`;
+      } catch {
+        errorMsg = `HTTP ${res.status}`;
+      }
+    }
+    throw new Error(errorMsg);
   }
-  return data;
+
+  try {
+    const text = await res.text();
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`JSON parsing failed. Status: ${res.status}. Error: ${e.message}`);
+  }
 }
 
 /** Load saved result from server (images served as URLs). */
 export async function fetchResult(jobId) {
   const res = await fetch(`${API_BASE}/results/${jobId}`);
-  const data = await res.json();
   if (!res.ok) {
-    const msg = data.detail || "Failed to load results";
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    let errorMsg = "Failed to load results";
+    try {
+      const errorData = await res.json();
+      errorMsg = errorData.detail || errorMsg;
+    } catch {
+      try {
+        const text = await res.text();
+        errorMsg = text || `HTTP ${res.status}: ${res.statusText}`;
+      } catch {
+        errorMsg = `HTTP ${res.status}`;
+      }
+    }
+    throw new Error(errorMsg);
   }
-  return data;
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new Error(`Failed to parse results JSON: ${e.message}`);
+  }
 }
 
 /** Base64 or URL string -> img src */
